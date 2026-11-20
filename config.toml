@@ -1,0 +1,161 @@
+# ============================================================
+#  PadMIDI - configuración
+#  Tras editar, reinicia PadMIDI para aplicar los cambios.
+# ============================================================
+
+[midi]
+port = "loopMIDI"   # parte del nombre del puerto MIDI virtual (ver: run.bat --list)
+channel = 1         # canal del banco 1. El banco 2 usa canal 2, etc.
+
+[general]
+rate_hz = 250            # lecturas por segundo
+controller = "auto"      # "auto" o 0-3
+
+[banks]
+count = 4         # nº de bancos (cada uno en su canal MIDI = 4 x todos los controles)
+next = "RB"       # botón para el banco siguiente ("" = desactivado)
+prev = "LB"       # botón para el banco anterior
+rumble = true     # vibra N veces al cambiar al banco N
+
+# ------------------------------------------------------------
+#  EJES:  LX LY RX RY (sticks)   LT RT (gatillos)
+#
+#  mode:
+#    "absolute"  stick: centro = 64, extremos = 0/127.  gatillo: 0..127
+#    "positive"  solo la mitad positiva (arriba/derecha). En reposo = 0
+#    "negative"  solo la mitad negativa (abajo/izquierda). En reposo = 0
+#    "relative"  como un knob: el stick sube/baja el valor y se queda ahí
+#
+#  deadzone   0..0.95   zona muerta (evita ruido del stick)
+#  curve      1 = lineal, >1 = más control fino al principio, <1 = más brusco
+#  min / max  rango de salida (0..127). max < min invierte.
+#  invert     true/false
+#  smoothing  segundos de suavizado (0 = nada). Solo modos no relativos.
+#  speed      (relative) recorrido completo por segundo a tope de stick
+#  start      (relative) valor inicial 0..1
+# ------------------------------------------------------------
+
+# Stick izquierdo: 4 "throws" que vuelven a 0 al soltar
+[[axis]]
+input = "LY"
+mode = "positive"
+cc = 20
+curve = 1.5
+smoothing = 0.02
+label = "LS arriba"
+
+[[axis]]
+input = "LY"
+mode = "negative"
+cc = 21
+curve = 1.5
+smoothing = 0.02
+label = "LS abajo"
+
+[[axis]]
+input = "LX"
+mode = "positive"
+cc = 22
+curve = 1.5
+smoothing = 0.02
+label = "LS derecha"
+
+[[axis]]
+input = "LX"
+mode = "negative"
+cc = 23
+curve = 1.5
+smoothing = 0.02
+label = "LS izquierda"
+
+# Stick derecho: 2 knobs persistentes
+[[axis]]
+input = "RX"
+mode = "relative"
+cc = 24
+speed = 0.6
+curve = 2.0
+label = "RS knob X"
+
+[[axis]]
+input = "RY"
+mode = "relative"
+cc = 25
+speed = 0.6
+curve = 2.0
+label = "RS knob Y"
+
+# Gatillos
+[[axis]]
+input = "LT"
+cc = 26
+deadzone = 0.05
+smoothing = 0.01
+label = "LT"
+
+[[axis]]
+input = "RT"
+cc = 27
+deadzone = 0.05
+smoothing = 0.01
+label = "RT"
+
+# ------------------------------------------------------------
+#  BOTONES:  A B X Y  UP DOWN LEFT RIGHT  LS RS (clic sticks)  BACK START  (LB RB si no son de banco)
+#  mode: "momentary" (on mientras pulsas) o "toggle" (pulsa on / pulsa off)
+#  on / off: valores enviados (por defecto 127 / 0)
+# ------------------------------------------------------------
+
+[[button]]
+input = "A"
+cc = 102
+label = "A"
+
+[[button]]
+input = "B"
+cc = 103
+label = "B"
+
+[[button]]
+input = "X"
+cc = 104
+mode = "toggle"
+label = "X (toggle)"
+
+[[button]]
+input = "Y"
+cc = 105
+mode = "toggle"
+label = "Y (toggle)"
+
+[[button]]
+input = "UP"
+cc = 106
+label = "Cruceta arriba"
+
+[[button]]
+input = "DOWN"
+cc = 107
+label = "Cruceta abajo"
+
+[[button]]
+input = "LEFT"
+cc = 108
+label = "Cruceta izquierda"
+
+[[button]]
+input = "RIGHT"
+cc = 109
+label = "Cruceta derecha"
+
+[[button]]
+input = "LS"
+cc = 110
+mode = "toggle"
+label = "Clic stick izq"
+
+[[button]]
+input = "RS"
+cc = 111
+mode = "toggle"
+label = "Clic stick der"
