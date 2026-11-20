@@ -63,6 +63,19 @@ class Config:
     rumble: bool = True
     axes: list = field(default_factory=list)
     buttons: list = field(default_factory=list)
+    # banco (0-based) -> (ejes, botones) que sustituyen a los generales
+    # para las entradas que mencionan; el resto se hereda.
+    overrides: dict = field(default_factory=dict)
+
+    def layout(self, bank: int) -> tuple[list, list]:
+        ov = self.overrides.get(bank)
+        if not ov:
+            return self.axes, self.buttons
+        ov_axes, ov_buttons = ov
+        a_in = {m.input for m in ov_axes}
+        b_in = {m.input for m in ov_buttons}
+        return ([m for m in self.axes if m.input not in a_in] + ov_axes,
+                [m for m in self.buttons if m.input not in b_in] + ov_buttons)
 
 
 @dataclass(frozen=True)
@@ -111,8 +124,57 @@ def _str(table, key, default, where):
     return v
 
 
+_AXIS_KEYS = set(AxisMap.__dataclass_fields__)
+_BUTTON_KEYS = set(ButtonMap.__dataclass_fields__)
+
+
+def _parse_axis(t: dict, w: str) -> AxisMap:
+    _check_keys(t, _AXIS_KEYS, w)
+    m = AxisMap(
+        input=_choice(t, "input", "", AXES, w),
+        cc=_num(t, "cc", 0, 0, 127, w, integer=True),
+        mode=_choice(t, "mode", "absolute", AXIS_MODES, w),
+        deadzone=_num(t, "deadzone", 0.12, 0.0, 0.95, w),
+        curve=_num(t, "curve", 1.0, 0.1, 5.0, w),
+        min=_num(t, "min", 0, 0, 127, w, integer=True),
+        max=_num(t, "max", 127, 0, 127, w, integer=True),
+        invert=_bool(t, "invert", False, w),
+        smoothing=_num(t, "smoothing", 0.0, 0.0, 2.0, w),
+        speed=_num(t, "speed", 0.6, 0.01, 20.0, w),
+        start=_num(t, "start", 0.0, 0.0, 1.0, w),
+        label=_str(t, "label", "", w),
+    )
+    if m.input in TRIGGER_AXES and m.mode == "negative":
+        raise ConfigError(f"{w}: los gatillos no tienen dirección negativa")
+    return m
+
+
+def _parse_button(t: dict, w: str, reserved: set) -> ButtonMap:
+    _check_keys(t, _BUTTON_KEYS, w)
+    m = ButtonMap(
+        input=_choice(t, "input", "", BUTTONS, w),
+        cc=_num(t, "cc", 0, 0, 127, w, integer=True),
+        mode=_choice(t, "mode", "momentary", BUTTON_MODES, w),
+        on=_num(t, "on", 127, 0, 127, w, integer=True),
+        off=_num(t, "off", 0, 0, 127, w, integer=True),
+        label=_str(t, "label", "", w),
+    )
+    if m.input in reserved:
+        raise ConfigError(f"{w}: {m.input} está reservado para cambiar de banco")
+    return m
+
+
+def _check_unique_cc(axes: list, buttons: list, where: str) -> None:
+    used: dict[int, str] = {}
+    for m in axes + buttons:
+        name = f"{m.input} ({m.label or m.mode})"
+        if m.cc in used:
+            raise ConfigError(f"{where}: CC {m.cc} lo usan a la vez {used[m.cc]} y {name}")
+        used[m.cc] = name
+
+
 def parse_config(data: dict) -> Config:
-    _check_keys(data, {"midi", "general", "banks", "axis", "button"}, "config")
+    _check_keys(data, {"midi", "general", "banks", "axis", "button", "bank"}, "config")
     cfg = Config()
 
     midi = data.get("midi", {})
@@ -141,52 +203,23 @@ def parse_config(data: dict) -> Config:
         raise ConfigError("[banks]: channel + count - 1 no puede pasar de 16 (cada banco usa un canal MIDI)")
 
     reserved = {cfg.bank_next, cfg.bank_prev} - {None}
-    used_cc: dict[int, str] = {}
+    cfg.axes = [_parse_axis(t, f"[[axis]] #{n}") for n, t in enumerate(data.get("axis", []), 1)]
+    cfg.buttons = [_parse_button(t, f"[[button]] #{n}", reserved)
+                   for n, t in enumerate(data.get("button", []), 1)]
+    _check_unique_cc(cfg.axes, cfg.buttons, "layout general")
 
-    def claim(cc, where):
-        if cc in used_cc:
-            raise ConfigError(f"{where}: CC {cc} ya lo usa {used_cc[cc]}")
-        used_cc[cc] = where
-
-    axis_keys = set(AxisMap.__dataclass_fields__)
-    for n, t in enumerate(data.get("axis", []), 1):
-        w = f"[[axis]] #{n}"
-        _check_keys(t, axis_keys, w)
-        m = AxisMap(
-            input=_choice(t, "input", "", AXES, w),
-            cc=_num(t, "cc", 0, 0, 127, w, integer=True),
-            mode=_choice(t, "mode", "absolute", AXIS_MODES, w),
-            deadzone=_num(t, "deadzone", 0.12, 0.0, 0.95, w),
-            curve=_num(t, "curve", 1.0, 0.1, 5.0, w),
-            min=_num(t, "min", 0, 0, 127, w, integer=True),
-            max=_num(t, "max", 127, 0, 127, w, integer=True),
-            invert=_bool(t, "invert", False, w),
-            smoothing=_num(t, "smoothing", 0.0, 0.0, 2.0, w),
-            speed=_num(t, "speed", 0.6, 0.01, 20.0, w),
-            start=_num(t, "start", 0.0, 0.0, 1.0, w),
-            label=_str(t, "label", "", w),
-        )
-        if m.input in TRIGGER_AXES and m.mode == "negative":
-            raise ConfigError(f"{w}: los gatillos no tienen dirección negativa")
-        claim(m.cc, w)
-        cfg.axes.append(m)
-
-    button_keys = set(ButtonMap.__dataclass_fields__)
-    for n, t in enumerate(data.get("button", []), 1):
-        w = f"[[button]] #{n}"
-        _check_keys(t, button_keys, w)
-        m = ButtonMap(
-            input=_choice(t, "input", "", BUTTONS, w),
-            cc=_num(t, "cc", 0, 0, 127, w, integer=True),
-            mode=_choice(t, "mode", "momentary", BUTTON_MODES, w),
-            on=_num(t, "on", 127, 0, 127, w, integer=True),
-            off=_num(t, "off", 0, 0, 127, w, integer=True),
-            label=_str(t, "label", "", w),
-        )
-        if m.input in reserved:
-            raise ConfigError(f"{w}: {m.input} está reservado para cambiar de banco")
-        claim(m.cc, w)
-        cfg.buttons.append(m)
+    for n, bt in enumerate(data.get("bank", []), 1):
+        w = f"[[bank]] #{n}"
+        _check_keys(bt, {"number", "axis", "button"}, w)
+        num = _num(bt, "number", 0, 1, cfg.bank_count, w, integer=True)
+        if num - 1 in cfg.overrides:
+            raise ConfigError(f"{w}: el banco {num} ya está definido en otro [[bank]]")
+        wb = f"banco {num}"
+        ov_axes = [_parse_axis(t, f"{wb} [[bank.axis]] #{i}") for i, t in enumerate(bt.get("axis", []), 1)]
+        ov_buttons = [_parse_button(t, f"{wb} [[bank.button]] #{i}", reserved)
+                      for i, t in enumerate(bt.get("button", []), 1)]
+        cfg.overrides[num - 1] = (ov_axes, ov_buttons)
+        _check_unique_cc(*cfg.layout(num - 1), wb)
 
     return cfg
 
@@ -280,15 +313,16 @@ class Engine:
 
         b = self.bank
         ch = self.channel
+        axes, buttons = cfg.layout(b)
         candidates = []  # (key, value, delta, event)
 
-        for i, m in enumerate(cfg.axes):
+        for i, m in enumerate(axes):
             key = (b, "a", i)
             v = self._axis_value(key, m, pad.axes.get(m.input, 0.0), dt)
             val = round(m.min + v * (m.max - m.min))
             self._offer(candidates, key, val, MidiEvent(ch, m.cc, val, m.label or f"{m.input} {m.mode}"))
 
-        for i, m in enumerate(cfg.buttons):
+        for i, m in enumerate(buttons):
             key = (b, "b", i)
             if m.mode == "toggle":
                 if m.input in pressed:

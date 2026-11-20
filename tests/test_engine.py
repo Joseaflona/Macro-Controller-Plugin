@@ -79,6 +79,38 @@ class ConfigTests(unittest.TestCase):
         with self.assertRaises(ConfigError):
             parse_config({"axis": [{"input": "LX", "cc": 20, "dedzone": 0.1}]})
 
+    def test_bank_override_replaces_only_that_input(self):
+        c = parse_config({
+            "banks": {"count": 2, "next": "RB"},
+            "axis": [{"input": "LX", "cc": 22, "mode": "positive"},
+                     {"input": "LX", "cc": 23, "mode": "negative"},
+                     {"input": "LY", "cc": 20, "mode": "positive"}],
+            "bank": [{"number": 2, "axis": [{"input": "LX", "cc": 22, "mode": "absolute"}]}],
+        })
+        axes, _ = c.layout(1)
+        self.assertEqual(sorted((m.input, m.cc, m.mode) for m in axes),
+                         [("LX", 22, "absolute"), ("LY", 20, "positive")])
+        self.assertEqual(len(c.layout(0)[0]), 3)
+
+    def test_bank_override_cc_clash_rejected(self):
+        with self.assertRaises(ConfigError):
+            parse_config({"banks": {"count": 2},
+                          "axis": [{"input": "LY", "cc": 20}],
+                          "bank": [{"number": 2, "axis": [{"input": "LX", "cc": 20}]}]})
+
+    def test_pan_mode_rests_at_center_in_bank_2(self):
+        c = parse_config({
+            "banks": {"count": 2, "next": "RB"},
+            "axis": [{"input": "LX", "cc": 22, "mode": "positive", "deadzone": 0}],
+            "bank": [{"number": 2, "axis": [{"input": "LX", "cc": 22, "mode": "absolute", "deadzone": 0}]}],
+        })
+        e = Engine(c)
+        e.update(pad(LX=0.0), 0.01)
+        e.update(pad(["RB"], LX=0.0), 0.01)
+        e.update(pad(LX=1.0), 0.01)
+        ev = e.update(pad(LX=0.0), 0.01)            # soltar stick
+        self.assertEqual((ev[0].channel, ev[0].cc, ev[0].value), (2, 22, 64))
+
     def test_shipped_config_loads(self):
         from pathlib import Path
         from padmidi.engine import load_config

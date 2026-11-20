@@ -31,6 +31,8 @@ Para mapear varios bancos, cambia de banco con LB/RB antes de mapear. Cada banco
 
 Todo se edita en `config.toml`, donde cada opción viene explicada.
 
+**Bancos personalizados**: un bloque `[[bank]]` con `number = N` y sus `[[bank.axis]]` / `[[bank.button]]` sustituye, solo en ese banco, los controles que menciona. El resto se hereda del layout general. Por defecto, en el **banco 2** los ejes horizontales LX (CC22) y RX (CC24) están en modo pan: el centro del stick envía 64.
+
 ## Consejos
 
 - **Knobs relativos y el ratón**: si mueves con el ratón un parámetro mapeado a un knob relativo, el mando y Ableton se desincronizan. Pon *Takeover Mode = Value Scaling* en las preferencias MIDI de Ableton.

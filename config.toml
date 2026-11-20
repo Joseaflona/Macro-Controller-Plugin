@@ -159,3 +159,31 @@ input = "RS"
 cc = 111
 mode = "toggle"
 label = "Clic stick der"
+
+# ============================================================
+#  BANCOS PERSONALIZADOS
+#  Cada [[bank]] sustituye, solo en ese banco, los controles que
+#  menciona. Los que no menciona se heredan del layout de arriba.
+#  Ejemplo: si aquí defines "LX", se ignoran TODOS los mapeos
+#  generales de LX en ese banco.
+# ============================================================
+
+# Banco 2: ejes horizontales en modo pan (centro del stick = 64 = C)
+[[bank]]
+number = 2
+
+[[bank.axis]]
+input = "LX"
+mode = "absolute"
+cc = 22
+deadzone = 0.10
+smoothing = 0.03
+label = "LS pan"
+
+[[bank.axis]]
+input = "RX"
+mode = "absolute"
+cc = 24
+deadzone = 0.10
+smoothing = 0.03
+label = "RS pan"
